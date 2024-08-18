@@ -1,5 +1,5 @@
 # SanAndreas Unbound
-A freeroam gamemode for GTA SanAndreas Multiplayer (open.mp) written in Rust. The main purpose of this gamemode is to test my Rust framework, [omprs](https://githu.com/sreyas-sreelal/omprs-gdk).
+A freeroam gamemode for GTA SanAndreas Multiplayer (open.mp) written in Rust. The main purpose of this gamemode is to test my Rust framework, [omprs](https://github.com/sreyas-sreelal/omprs-gdk).
 
 ## Setting up
 1. Download open.mp server package and extract the contents inside `Server/` directory to this project
