@@ -1,0 +1,17 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "buildcopy",
+        "type": "shell",
+        "command": "cargo +stable-i686 build; cp target/debug/sau.dll components/sau.dll;cp target/debug/sau.pdb components/sau.pdb",
+        "group": "test",
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        }
+      }
+    ]
+  }
