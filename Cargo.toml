@@ -1,0 +1,13 @@
+[package]
+name = "sau"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bcrypt = "0.15.1"
+mysql = "25.0.1"
+omp = {git="https://github.com/Sreyas-Sreelal/omprs-gdk",branch="capi"}
+threadpool = "1.8.1"

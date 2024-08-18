@@ -1,0 +1,10 @@
+/target
+Server/
+.vscode/
+log.txt
+components/
+models/
+*.exe
+*.pdb
+bans.json
+config.json
