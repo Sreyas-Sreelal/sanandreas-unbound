@@ -9,6 +9,7 @@ use std::{
     sync::mpsc::{channel, Receiver, Sender},
 };
 use threadpool::ThreadPool;
+
 thread_local! {
     static AUTHENTICATED_PLAYERS: RefCell<HashSet<i32>> =  RefCell::new(HashSet::new());
 }
@@ -36,6 +37,7 @@ pub struct Auth {
     login_requestee: HashSet<i32>,
     on_player_register: fn(Player),
     on_player_login: fn(Player),
+    bcrypt_cost: u32,
 }
 
 impl Auth {
@@ -69,6 +71,11 @@ impl Auth {
             login_requestee: HashSet::new(),
             on_player_register,
             on_player_login,
+            bcrypt_cost: 12,
         })
+    }
+
+    pub fn set_bcrypt_cost(&mut self, cost: u32) {
+        self.bcrypt_cost = cost;
     }
 }

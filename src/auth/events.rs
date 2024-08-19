@@ -6,6 +6,8 @@ use omp::{
     types::colour::Colour,
 };
 
+const AUTH_DIALOG: i32 = 32700;
+
 use super::{remove_player_auth, set_player_auth, Auth};
 
 impl Events for Auth {
@@ -19,7 +21,7 @@ impl Events for Auth {
                     );
                     self.reg_requestee.insert(player.get_id());
                     player.show_dialog(
-                        32700,
+                        AUTH_DIALOG,
                         DialogStyle::Password,
                         "Register your account",
                         "Please enter a password for your account",
@@ -29,7 +31,7 @@ impl Events for Auth {
                 } else {
                     self.login_requestee.insert(player.get_id());
                     player.show_dialog(
-                        32700,
+                        AUTH_DIALOG,
                         DialogStyle::Password,
                         "Login to your account",
                         "This account is Registered. Please enter your password to login.",
@@ -48,7 +50,7 @@ impl Events for Auth {
                 } else {
                     self.login_requestee.insert(player.get_id());
                     player.show_dialog(
-                        32700,
+                        AUTH_DIALOG,
                         DialogStyle::Password,
                         "Login to your account",
                         "Invalid Password. Please enter your password again to login.",
@@ -85,7 +87,7 @@ impl Events for Auth {
         _list_item: i32,
         input_text: String,
     ) {
-        if dialog_id == 32700 {
+        if dialog_id == AUTH_DIALOG {
             let playerid = player.get_id();
             if response == DialogResponse::Right {
                 self.reg_requestee.remove(&playerid);
@@ -97,8 +99,10 @@ impl Events for Auth {
                 self.reg_requestee.remove(&playerid);
                 let mut conn = self.connection.get_conn().unwrap();
                 let username = player.get_name();
+                let cost = self.bcrypt_cost;
+
                 self.pool.execute(move || {
-                    let hashed = bcrypt::hash(input_text, 12).unwrap();
+                    let hashed = bcrypt::hash(input_text, cost).unwrap();
                     conn.query_drop(format!(
                         "INSERT INTO  User(username,password) VALUES(
                             '{username}',
@@ -108,6 +112,7 @@ impl Events for Auth {
                     ))
                     .unwrap();
                 });
+
                 set_player_auth(player);
                 (self.on_player_register)(player);
             } else if self.login_requestee.contains(&playerid) {
@@ -116,6 +121,7 @@ impl Events for Auth {
                 let player_name = player.get_name();
                 let sender = self.login_sender.clone();
                 let playerid = player.get_id();
+
                 self.pool.execute(move || {
                     let data = conn
                         .query_map(

@@ -1,6 +1,6 @@
 #[macro_use]
 mod helper;
-mod auth;
+pub mod auth;
 
 use auth::{is_player_authenticated, Auth};
 use mysql::Pool;
@@ -42,7 +42,6 @@ fn on_player_login(player: Player) {
 
 fn on_player_register(player: Player) {
     player.send_client_message(Colour::from_rgba(0x00FF0000), "Sucessfully registered.");
-
     player.spawn();
 }
 
@@ -51,13 +50,15 @@ fn entry() {
     let connection = Pool::new(include_str!("../mysql.config")).unwrap();
     let pool = ThreadPool::new(2);
 
-    register!(Auth::new(
+    let auth_module = Auth::new(
         pool.clone(),
         connection.clone(),
         on_player_register,
-        on_player_login
+        on_player_login,
     )
-    .unwrap());
+    .unwrap();
+
+    register!(auth_module);
     register!(SanAndreasUnbound /* ::new(connection.clone(), pool.clone()) */);
 
     log!("San Andreas Unbound v{VERSION} loaded");
