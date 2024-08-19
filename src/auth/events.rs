@@ -19,7 +19,7 @@ impl Events for Auth {
                         Colour::from_rgba(0x77ff0000),
                         "You are not registered!",
                     );
-                    self.reg_requestee.insert(player.get_id());
+                    self.reg_requestee.insert(playerid);
                     player.show_dialog(
                         AUTH_DIALOG,
                         DialogStyle::Password,
@@ -29,7 +29,7 @@ impl Events for Auth {
                         "Exit",
                     );
                 } else {
-                    self.login_requestee.insert(player.get_id());
+                    self.login_requestee.insert(playerid);
                     player.show_dialog(
                         AUTH_DIALOG,
                         DialogStyle::Password,
@@ -48,7 +48,7 @@ impl Events for Auth {
                     set_player_auth(player);
                     (self.on_player_login)(player);
                 } else {
-                    self.login_requestee.insert(player.get_id());
+                    self.login_requestee.insert(playerid);
                     player.show_dialog(
                         AUTH_DIALOG,
                         DialogStyle::Password,
