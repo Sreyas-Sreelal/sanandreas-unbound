@@ -1,7 +1,9 @@
 use std::{
+    collections::BTreeSet,
+    error::Error,
     sync::{
         mpsc::{channel, Receiver, Sender},
-        Arc,
+        Arc, OnceLock,
     },
     thread,
     time::Duration,
@@ -10,54 +12,82 @@ use std::{
 use omp::events::Events;
 use threadpool::ThreadPool;
 
-type CallBackFunction = Arc<Box<dyn Send + Sync + Fn() + 'static>>;
-
-static mut SENDER: Option<Sender<CallBackFunction>> = None;
-
+type CallBack = Box<dyn Fn() + Send + Sync>;
+static mut ACTIVE_TIMERS: OnceLock<BTreeSet<i32>> = OnceLock::new();
+static TIMER_SENDER: OnceLock<Sender<Arc<CallBack>>> = OnceLock::new();
+static TIMER_POOL: OnceLock<ThreadPool> = OnceLock::new();
 pub struct Timer {
-    receiver: Receiver<CallBackFunction>,
-    //timer_ids: Vec<u32>,
+    receiver: Receiver<Arc<CallBack>>,
+}
+
+impl Timer {
+    pub fn new() -> Result<Self, Box<dyn Error + 'static>> {
+        if TIMER_SENDER.get().is_some() {
+            return Err("Only Timer module instance is allowed".into());
+        }
+        unsafe { ACTIVE_TIMERS.get_or_init(BTreeSet::new) };
+
+        let (sender, receiver) = channel();
+
+        TIMER_POOL.get_or_init(|| ThreadPool::new(5));
+        TIMER_SENDER.get_or_init(|| sender);
+
+        Ok(Self { receiver })
+    }
+
+    pub fn set_timer(func: CallBack, repeating: bool, duration: Duration) -> Option<i32> {
+        if let Some(pool) = TIMER_POOL.get() {
+            let func = Arc::new(func);
+            let id = if let Some(active_timers) = unsafe { ACTIVE_TIMERS.get_mut() } {
+                let id = active_timers.last().unwrap_or(&-1) + 1;
+                active_timers.insert(id);
+                id
+            } else {
+                return None;
+            };
+
+            if repeating {
+                thread::spawn(move || {
+                    loop {
+                        thread::sleep(duration);
+                        if unsafe { !ACTIVE_TIMERS.get().unwrap().contains(&id) } {
+                            break;
+                        }
+                        let _ = TIMER_SENDER.get().unwrap().send(func.clone());
+                    }
+                    unsafe { ACTIVE_TIMERS.get_mut().unwrap().remove(&id) };
+                });
+            } else {
+                pool.execute(move || {
+                    thread::sleep(duration);
+                    let _ = TIMER_SENDER.get().unwrap().send(func.clone());
+                    unsafe { ACTIVE_TIMERS.get_mut().unwrap().remove(&id) };
+                });
+            }
+            Some(id)
+        } else {
+            None
+        }
+    }
+
+    pub fn kill_timer(id: i32) {
+        if let Some(active_timers) = unsafe { ACTIVE_TIMERS.get_mut() } {
+            if active_timers.contains(&id) {
+                active_timers.remove(&id);
+                return;
+            }
+        }
+
+        omp::core::Log(&format!(
+            "[WARNING] Tried to kill invalid Timer with ID: {id}"
+        ));
+    }
 }
 
 impl Events for Timer {
     fn on_tick(&mut self, _elapsed: i32) {
-        for func in self.receiver.try_iter() {
-            func();
+        for cb in self.receiver.try_iter() {
+            cb();
         }
-    }
-}
-
-impl Timer {
-    pub fn new() -> Self {
-        let (sender, receiver) = channel();
-        unsafe { SENDER = Some(sender.clone()) };
-        Self {
-            receiver, /* timer_ids:Vec::new() */
-        }
-    }
-    pub fn set_timer(
-        pool: ThreadPool,
-        duration: u64,
-        repeating: bool,
-        func: Box<dyn Send + Sync + Fn() + 'static>,
-    ) {
-        if unsafe { SENDER.is_none() } {
-            omp::core::Log(
-                "[WARNING] Calling Timer::set_timer without registering module instance",
-            );
-            return;
-        }
-        let sender = unsafe { SENDER.as_ref().unwrap().clone() };
-
-        pool.execute(move || {
-            let rc = Arc::new(func);
-            loop {
-                thread::sleep(Duration::from_secs(duration));
-                sender.send(rc.clone()).unwrap();
-                if !repeating {
-                    break;
-                }
-            }
-        })
     }
 }

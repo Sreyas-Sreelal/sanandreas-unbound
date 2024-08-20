@@ -1,7 +1,7 @@
 #[macro_use]
 mod helper;
 pub mod auth;
-mod timer;
+pub mod timer;
 
 use auth::{is_player_authenticated, Auth};
 use helper::delayed_kick;
@@ -11,13 +11,11 @@ use threadpool::ThreadPool;
 use timer::Timer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-struct SanAndreasUnbound {
-    pub pool: ThreadPool,
-}
+struct SanAndreasUnbound;
 
 impl SanAndreasUnbound {
-    pub fn new(pool: ThreadPool) -> Self {
-        SanAndreasUnbound { pool }
+    pub fn new() -> Self {
+        SanAndreasUnbound
     }
 }
 
@@ -35,19 +33,8 @@ impl Events for SanAndreasUnbound {
                 Colour::from_rgba(0xFF000000),
                 "You are kicked from server (Reason: Not loggedin) !!",
             );
-            delayed_kick(self.pool.clone(), player);
+            delayed_kick(player);
         }
-        let playerid = player.get_id();
-        timer::Timer::set_timer(
-            self.pool.clone(),
-            5,
-            true,
-            Box::new(move || {
-                if let Some(player) = Player::from_id(playerid) {
-                    player.send_client_message(Colour::from_rgba(0x0000EE00), "Test message!!");
-                }
-            }),
-        );
     }
 }
 
@@ -73,9 +60,9 @@ fn entry() {
         on_player_login,
     )
     .unwrap();
-    register!(Timer::new());
+    register!(Timer::new().unwrap());
     register!(auth_module);
-    register!(SanAndreasUnbound::new(pool.clone()));
+    register!(SanAndreasUnbound::new());
 
     log!("San Andreas Unbound v{VERSION} loaded");
 }

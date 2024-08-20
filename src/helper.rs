@@ -1,5 +1,5 @@
 use omp::players::Player;
-use threadpool::ThreadPool;
+use std::time::Duration;
 
 use crate::timer::Timer;
 
@@ -12,16 +12,15 @@ macro_rules! log {
     };
 }
 
-pub fn delayed_kick(pool: ThreadPool, player: Player) {
+pub fn delayed_kick(player: Player) {
     let playerid = player.get_id();
     Timer::set_timer(
-        pool,
-        1,
-        false,
         Box::new(move || {
             if let Some(player) = Player::from_id(playerid) {
                 player.kick();
             }
         }),
-    )
+        false,
+        Duration::from_secs(1),
+    );
 }
