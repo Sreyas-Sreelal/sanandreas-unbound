@@ -3,28 +3,11 @@ mod events;
 use mysql::{prelude::Queryable, Pool};
 use omp::players::Player;
 use std::{
-    cell::RefCell,
     collections::HashSet,
     error::Error,
     sync::mpsc::{channel, Receiver, Sender},
 };
 use threadpool::ThreadPool;
-
-thread_local! {
-    static AUTHENTICATED_PLAYERS: RefCell<HashSet<i32>> =  RefCell::new(HashSet::new());
-}
-
-pub fn is_player_authenticated(player: Player) -> bool {
-    AUTHENTICATED_PLAYERS.with(|x| x.borrow().contains(&player.get_id()))
-}
-
-fn set_player_auth(player: Player) {
-    AUTHENTICATED_PLAYERS.with(|x| x.borrow_mut().insert(player.get_id()));
-}
-
-fn remove_player_auth(player: Player) {
-    AUTHENTICATED_PLAYERS.with(|x| x.borrow_mut().remove(&player.get_id()));
-}
 
 pub struct Auth {
     pool: ThreadPool,
@@ -38,6 +21,7 @@ pub struct Auth {
     on_player_register: fn(Player),
     on_player_login: fn(Player),
     bcrypt_cost: u32,
+    authenticated_players: HashSet<i32>,
 }
 
 impl Auth {
@@ -72,10 +56,15 @@ impl Auth {
             on_player_register,
             on_player_login,
             bcrypt_cost: 12,
+            authenticated_players: HashSet::new(),
         })
     }
 
     pub fn set_bcrypt_cost(&mut self, cost: u32) {
         self.bcrypt_cost = cost;
+    }
+
+    pub fn is_player_authenticated(&mut self, player: Player) -> bool {
+        self.authenticated_players.contains(&player.get_id())
     }
 }

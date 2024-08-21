@@ -3,19 +3,38 @@ mod helper;
 pub mod auth;
 pub mod timer;
 
-use auth::{is_player_authenticated, Auth};
-use helper::delayed_kick;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
+use auth::Auth;
 use mysql::Pool;
 use omp::{events::Events, main, players::Player, register, types::colour::Colour};
 use threadpool::ThreadPool;
 use timer::Timer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-struct SanAndreasUnbound;
+struct SanAndreasUnbound {
+    timer: Arc<Mutex<Timer>>,
+    auth: Arc<Mutex<Auth>>,
+}
 
 impl SanAndreasUnbound {
-    pub fn new() -> Self {
-        SanAndreasUnbound
+    pub fn new(timer: Arc<Mutex<Timer>>, auth: Arc<Mutex<Auth>>) -> Self {
+        SanAndreasUnbound { timer, auth }
+    }
+    pub fn delayed_kick(&mut self, player: Player) {
+        let playerid = player.get_id();
+        self.timer.lock().unwrap().set_timer(
+            Box::new(move || {
+                if let Some(player) = Player::from_id(playerid) {
+                    player.kick();
+                }
+            }),
+            false,
+            Duration::from_secs(1),
+        );
     }
 }
 
@@ -28,12 +47,12 @@ impl Events for SanAndreasUnbound {
     }
 
     fn on_player_spawn(&mut self, player: Player) {
-        if !is_player_authenticated(player) {
+        if !self.auth.lock().unwrap().is_player_authenticated(player) {
             player.send_client_message(
                 Colour::from_rgba(0xFF000000),
                 "You are kicked from server (Reason: Not loggedin) !!",
             );
-            delayed_kick(player);
+            self.delayed_kick(player);
         }
     }
 }
@@ -53,16 +72,15 @@ fn entry() {
     let connection = Pool::new(include_str!("../mysql.config")).unwrap();
     let pool = ThreadPool::new(2);
 
-    let auth_module = Auth::new(
+    let timer = register!(Timer::new().unwrap());
+    let auth_module = register!(Auth::new(
         pool.clone(),
         connection.clone(),
         on_player_register,
         on_player_login,
     )
-    .unwrap();
-    register!(Timer::new().unwrap());
-    register!(auth_module);
-    register!(SanAndreasUnbound::new());
+    .unwrap());
+    register!(SanAndreasUnbound::new(timer, auth_module));
 
     log!("San Andreas Unbound v{VERSION} loaded");
 }

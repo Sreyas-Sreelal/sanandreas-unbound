@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+
 use mysql::prelude::Queryable;
 use omp::{
     dialogs::{DialogResponse, DialogStyle},
@@ -8,7 +10,7 @@ use omp::{
 
 const AUTH_DIALOG: i32 = 32700;
 
-use super::{remove_player_auth, set_player_auth, Auth};
+use super::Auth;
 
 impl Events for Auth {
     fn on_tick(&mut self, _elapsed: i32) {
@@ -42,10 +44,10 @@ impl Events for Auth {
             }
         }
 
-        for (playerid, success) in self.login_receiver.try_iter() {
+        for (playerid, success) in self.login_receiver.borrow_mut().try_iter() {
             if let Some(player) = Player::from_id(playerid) {
                 if success {
-                    set_player_auth(player);
+                    self.authenticated_players.insert(player.get_id());
                     (self.on_player_login)(player);
                 } else {
                     self.login_requestee.insert(playerid);
@@ -63,11 +65,13 @@ impl Events for Auth {
     }
 
     fn on_player_connect(&mut self, player: omp::players::Player) {
-        remove_player_auth(player);
+        self.authenticated_players.remove(&player.get_id());
+
         let player_name = player.get_name();
         let mut conn = self.connection.get_conn().unwrap();
         let sender = self.register_sender.clone();
         let playerid = player.get_id();
+
         self.pool.execute(move || {
             let data = conn
                 .query_map(
@@ -113,7 +117,7 @@ impl Events for Auth {
                     .unwrap();
                 });
 
-                set_player_auth(player);
+                self.authenticated_players.insert(player.get_id());
                 (self.on_player_register)(player);
             } else if self.login_requestee.contains(&playerid) {
                 self.login_requestee.remove(&playerid);
