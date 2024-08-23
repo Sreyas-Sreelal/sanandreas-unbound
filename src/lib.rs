@@ -3,10 +3,7 @@ mod helper;
 pub mod auth;
 pub mod timer;
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use auth::Auth;
 use mysql::Pool;
@@ -16,17 +13,17 @@ use timer::Timer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 struct SanAndreasUnbound {
-    timer: Arc<Mutex<Timer>>,
-    auth: Arc<Mutex<Auth>>,
+    timer: Rc<RefCell<Timer>>,
+    auth: Rc<RefCell<Auth>>,
 }
 
 impl SanAndreasUnbound {
-    pub fn new(timer: Arc<Mutex<Timer>>, auth: Arc<Mutex<Auth>>) -> Self {
+    pub fn new(timer: Rc<RefCell<Timer>>, auth: Rc<RefCell<Auth>>) -> Self {
         SanAndreasUnbound { timer, auth }
     }
     pub fn delayed_kick(&mut self, player: Player) {
         let playerid = player.get_id();
-        self.timer.lock().unwrap().set_timer(
+        self.timer.borrow_mut().set_timer(
             Box::new(move || {
                 if let Some(player) = Player::from_id(playerid) {
                     player.kick();
@@ -47,7 +44,7 @@ impl Events for SanAndreasUnbound {
     }
 
     fn on_player_spawn(&mut self, player: Player) {
-        if !self.auth.lock().unwrap().is_player_authenticated(player) {
+        if !self.auth.borrow_mut().is_player_authenticated(player) {
             player.send_client_message(
                 Colour::from_rgba(0xFF000000),
                 "You are kicked from server (Reason: Not loggedin) !!",

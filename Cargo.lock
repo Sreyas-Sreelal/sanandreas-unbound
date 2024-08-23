@@ -950,7 +950,7 @@ dependencies = [
 [[package]]
 name = "omp"
 version = "1.1.0"
-source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#4e7949196faf4337f31196128852f86d9168aa76"
+source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#432ba8cb1fa6f65108d2e3092c919bdea9d1ff2b"
 dependencies = [
  "omp-gdk",
 ]
@@ -958,7 +958,7 @@ dependencies = [
 [[package]]
 name = "omp-codegen"
 version = "0.3.0"
-source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#4e7949196faf4337f31196128852f86d9168aa76"
+source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#432ba8cb1fa6f65108d2e3092c919bdea9d1ff2b"
 dependencies = [
  "quote",
  "syn 2.0.75",
@@ -967,7 +967,7 @@ dependencies = [
 [[package]]
 name = "omp-gdk"
 version = "1.1.0"
-source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#4e7949196faf4337f31196128852f86d9168aa76"
+source = "git+https://github.com/Sreyas-Sreelal/omprs-gdk?branch=capi#432ba8cb1fa6f65108d2e3092c919bdea9d1ff2b"
 dependencies = [
  "omp-codegen",
  "paste",
