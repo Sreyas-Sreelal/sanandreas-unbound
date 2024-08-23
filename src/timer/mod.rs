@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::HashMap,
     error::Error,
     sync::{
         mpsc::{channel, Receiver, Sender},
@@ -15,7 +15,7 @@ type CallBack = Box<dyn Fn() + Send + Sync>;
 pub struct Timer {
     receiver: Receiver<(usize, bool, Arc<CallBack>)>,
     sender: Sender<(usize, bool, Arc<CallBack>)>,
-    active_timers: BTreeMap<usize, timer::Guard>,
+    active_timers: HashMap<usize, timer::Guard>,
     timer: timer::Timer,
 }
 
@@ -26,7 +26,7 @@ impl Timer {
         Ok(Self {
             receiver,
             sender,
-            active_timers: BTreeMap::new(),
+            active_timers: HashMap::new(),
             timer: timer::Timer::new(),
         })
     }
