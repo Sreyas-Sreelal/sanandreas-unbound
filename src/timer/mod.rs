@@ -20,15 +20,15 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new() -> Result<Self, Box<dyn Error + 'static>> {
+    pub fn new() -> Self {
         let (sender, receiver) = channel();
 
-        Ok(Self {
+        Self {
             receiver,
             sender,
             active_timers: HashMap::new(),
             timer: timer::Timer::new(),
-        })
+        }
     }
 
     pub fn set_timer(&mut self, func: CallBack, repeating: bool, duration: i64) -> usize {

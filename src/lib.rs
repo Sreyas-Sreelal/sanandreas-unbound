@@ -69,7 +69,7 @@ fn entry() {
     let connection = Pool::new(include_str!("../mysql.config")).unwrap();
     let pool = ThreadPool::new(2);
 
-    let timer = register!(Timer::new().unwrap());
+    let timer = register!(Timer::new());
     let auth_module = register!(Auth::new(
         pool.clone(),
         connection.clone(),
