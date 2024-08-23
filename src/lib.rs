@@ -3,7 +3,7 @@ mod helper;
 pub mod auth;
 pub mod timer;
 
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{cell::RefCell, rc::Rc};
 
 use auth::Auth;
 use mysql::Pool;
@@ -30,7 +30,7 @@ impl SanAndreasUnbound {
                 }
             }),
             false,
-            Duration::from_secs(1),
+            1000,
         );
     }
 }

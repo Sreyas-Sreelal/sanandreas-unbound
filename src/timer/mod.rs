@@ -1,24 +1,22 @@
 use std::{
-    collections::BTreeSet,
+    collections::BTreeMap,
     error::Error,
     sync::{
         mpsc::{channel, Receiver, Sender},
-        Arc, Mutex,
+        Arc,
     },
-    thread,
-    time::Duration,
 };
 
+use chrono::Duration;
 use omp::events::Events;
-use threadpool::ThreadPool;
 
 type CallBack = Box<dyn Fn() + Send + Sync>;
 
 pub struct Timer {
-    receiver: Receiver<Arc<CallBack>>,
-    sender: Sender<Arc<CallBack>>,
-    active_timers: Arc<Mutex<BTreeSet<i32>>>,
-    pool: ThreadPool,
+    receiver: Receiver<(usize, bool, Arc<CallBack>)>,
+    sender: Sender<(usize, bool, Arc<CallBack>)>,
+    active_timers: BTreeMap<usize, timer::Guard>,
+    timer: timer::Timer,
 }
 
 impl Timer {
@@ -28,45 +26,39 @@ impl Timer {
         Ok(Self {
             receiver,
             sender,
-            active_timers: Arc::new(Mutex::new(BTreeSet::new())),
-            pool: ThreadPool::new(5),
+            active_timers: BTreeMap::new(),
+            timer: timer::Timer::new(),
         })
     }
 
-    pub fn set_timer(&mut self, func: CallBack, repeating: bool, duration: Duration) -> i32 {
+    pub fn set_timer(&mut self, func: CallBack, repeating: bool, duration: i64) -> usize {
         let func = Arc::new(func);
-        let active_timer = self.active_timers.clone();
-
-        let id = active_timer.lock().unwrap().last().unwrap_or(&-1) + 1;
-        active_timer.lock().unwrap().insert(id);
+        let id = self.active_timers.len() + 1;
         let sender = self.sender.clone();
         if repeating {
-            thread::spawn(move || {
-                loop {
-                    thread::sleep(duration);
-                    if !active_timer.lock().unwrap().contains(&id) {
-                        break;
-                    }
-                    let _ = sender.send(func.clone());
-                }
-                active_timer.lock().unwrap().remove(&id);
-            });
+            self.active_timers.insert(
+                id,
+                self.timer
+                    .schedule_repeating(Duration::milliseconds(duration), move || {
+                        let _ = sender.send((id, true, func.clone()));
+                    }),
+            );
         } else {
-            self.pool.execute(move || {
-                thread::sleep(duration);
-                let _ = sender.send(func.clone());
-                active_timer.lock().unwrap().remove(&id);
-            });
+            self.active_timers.insert(
+                id,
+                self.timer
+                    .schedule_with_delay(Duration::milliseconds(duration), move || {
+                        let _ = sender.send((id, false, func.clone()));
+                    }),
+            );
         }
         id
     }
 
-    pub fn kill_timer(&mut self, id: i32) {
-        if let Ok(mut active_timers) = self.active_timers.lock() {
-            if active_timers.contains(&id) {
-                active_timers.remove(&id);
-                return;
-            }
+    pub fn kill_timer(&mut self, id: usize) {
+        if self.active_timers.contains_key(&id) {
+            self.active_timers.remove(&id);
+            return;
         }
 
         omp::core::Log(&format!(
@@ -77,8 +69,14 @@ impl Timer {
 
 impl Events for Timer {
     fn on_tick(&mut self, _elapsed: i32) {
-        for cb in self.receiver.try_iter() {
+        for (id, repeating, cb) in self.receiver.try_iter() {
             cb();
+            if !repeating {
+                if self.active_timers.contains_key(&id) {
+                    self.active_timers.remove(&id);
+                    return;
+                }
+            }
         }
     }
 }

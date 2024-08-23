@@ -8,6 +8,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bcrypt = "0.15.1"
+chrono = "0.4.38"
 mysql = "25.0.1"
 omp = {git="https://github.com/Sreyas-Sreelal/omprs-gdk",branch="capi"}
 threadpool = "1.8.1"
+timer = "0.2.0"
