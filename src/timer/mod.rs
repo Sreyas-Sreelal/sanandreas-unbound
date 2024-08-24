@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    error::Error,
     sync::{
         mpsc::{channel, Receiver, Sender},
         Arc,
