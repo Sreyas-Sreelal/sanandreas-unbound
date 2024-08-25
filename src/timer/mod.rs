@@ -70,12 +70,16 @@ impl Events for Timer {
     fn on_tick(&mut self, _elapsed: i32) {
         for (id, repeating, cb) in self.receiver.try_iter() {
             cb();
-            if !repeating {
-                if self.active_timers.contains_key(&id) {
-                    self.active_timers.remove(&id);
-                    return;
-                }
+            if !repeating && self.active_timers.contains_key(&id) {
+                self.active_timers.remove(&id);
+                return;
             }
         }
+    }
+}
+
+impl Default for Timer {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -14,7 +14,7 @@ use super::Auth;
 
 impl Events for Auth {
     fn on_tick(&mut self, _elapsed: i32) {
-        for (playerid, data) in self.register_receiver.try_iter() {
+        for (playerid, data) in self.register_checker_receiver.try_iter() {
             if let Some(player) = Player::from_id(playerid) {
                 if data.is_empty() {
                     player.send_client_message(
@@ -44,11 +44,10 @@ impl Events for Auth {
             }
         }
 
-        for (playerid, success) in self.login_receiver.borrow_mut().try_iter() {
+        for (playerid, accountid, success) in self.login_receiver.borrow_mut().try_iter() {
             if let Some(player) = Player::from_id(playerid) {
                 if success {
-                    self.authenticated_players.insert(player.get_id());
-                    (self.on_player_login)(player);
+                    self.auth_event.on_player_login(player, accountid);
                 } else {
                     self.login_requestee.insert(playerid);
                     player.show_dialog(
@@ -62,14 +61,18 @@ impl Events for Auth {
                 }
             }
         }
+
+        for (accountid, playerid) in self.register_receiver.try_iter() {
+            if let Some(player) = Player::from_id(playerid) {
+                self.auth_event.on_player_register(player, accountid);
+            }
+        }
     }
 
     fn on_player_connect(&mut self, player: omp::players::Player) {
-        self.authenticated_players.remove(&player.get_id());
-
         let player_name = player.get_name();
         let mut conn = self.connection.get_conn().unwrap();
-        let sender = self.register_sender.clone();
+        let sender = self.register_checker_sender.clone();
         let playerid = player.get_id();
 
         self.pool.execute(move || {
@@ -104,6 +107,7 @@ impl Events for Auth {
                 let mut conn = self.connection.get_conn().unwrap();
                 let username = player.get_name();
                 let cost = self.bcrypt_cost;
+                let register_sender = self.register_sender.clone();
 
                 self.pool.execute(move || {
                     let hashed = bcrypt::hash(input_text, cost).unwrap();
@@ -115,10 +119,10 @@ impl Events for Auth {
                     ",
                     ))
                     .unwrap();
+                    register_sender
+                        .send((conn.last_insert_id(), playerid))
+                        .unwrap();
                 });
-
-                self.authenticated_players.insert(player.get_id());
-                (self.on_player_register)(player);
             } else if self.login_requestee.contains(&playerid) {
                 self.login_requestee.remove(&playerid);
                 let mut conn = self.connection.get_conn().unwrap();
@@ -129,12 +133,16 @@ impl Events for Auth {
                 self.pool.execute(move || {
                     let data = conn
                         .query_map(
-                            format!("SELECT password FROM User WHERE username='{player_name}'"),
-                            |password: String| password,
+                            format!("SELECT id,password FROM User WHERE username='{player_name}'"),
+                            |(id, password): (u64, String)| (id, password),
                         )
                         .unwrap();
                     sender
-                        .send((playerid, bcrypt::verify(input_text, &data[0]).unwrap()))
+                        .send((
+                            playerid,
+                            data[0].0,
+                            bcrypt::verify(input_text, &data[0].1).unwrap(),
+                        ))
                         .unwrap();
                 });
             }

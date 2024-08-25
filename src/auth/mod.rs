@@ -1,7 +1,7 @@
 mod events;
 
 use mysql::{prelude::Queryable, Pool};
-use omp::players::Player;
+use omp::{players::Player, types::colour::Colour};
 use std::{
     collections::HashSet,
     error::Error,
@@ -12,24 +12,23 @@ use threadpool::ThreadPool;
 pub struct Auth {
     pool: ThreadPool,
     connection: Pool,
-    register_sender: Sender<(i32, Vec<String>)>,
-    register_receiver: Receiver<(i32, Vec<String>)>,
-    login_sender: Sender<(i32, bool)>,
-    login_receiver: Receiver<(i32, bool)>,
+    register_checker_sender: Sender<(i32, Vec<String>)>,
+    register_checker_receiver: Receiver<(i32, Vec<String>)>,
+    login_sender: Sender<(i32, u64, bool)>,
+    login_receiver: Receiver<(i32, u64, bool)>,
+    register_sender: Sender<(u64, i32)>,
+    register_receiver: Receiver<(u64, i32)>,
     reg_requestee: HashSet<i32>,
     login_requestee: HashSet<i32>,
-    on_player_register: fn(Player),
-    on_player_login: fn(Player),
     bcrypt_cost: u32,
-    authenticated_players: HashSet<i32>,
+    auth_event: Box<dyn AuthEvents>,
 }
 
 impl Auth {
     pub fn new(
         pool: ThreadPool,
         connection: Pool,
-        on_player_register: fn(Player),
-        on_player_login: fn(Player),
+        auth_event: Box<dyn AuthEvents>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut conn = connection.get_conn()?;
         conn.query_drop(
@@ -41,30 +40,39 @@ impl Auth {
         ",
         )?;
 
-        let (register_sender, register_receiver) = channel();
+        let (register_checker_sender, register_checker_receiver) = channel();
         let (login_sender, login_receiver) = channel();
+        let (register_sender, register_receiver) = channel();
 
         Ok(Auth {
             pool,
             connection,
-            register_sender,
-            register_receiver,
+            register_checker_sender,
+            register_checker_receiver,
             login_sender,
             login_receiver,
+            register_sender,
+            register_receiver,
             reg_requestee: HashSet::new(),
             login_requestee: HashSet::new(),
-            on_player_register,
-            on_player_login,
+            auth_event,
             bcrypt_cost: 12,
-            authenticated_players: HashSet::new(),
         })
     }
 
     pub fn set_bcrypt_cost(&mut self, cost: u32) {
         self.bcrypt_cost = cost;
     }
+}
 
-    pub fn is_player_authenticated(&mut self, player: Player) -> bool {
-        self.authenticated_players.contains(&player.get_id())
+pub trait AuthEvents {
+    fn on_player_login(&mut self, player: Player, _accountid: u64) {
+        player.send_client_message(Colour::from_rgba(0x00FF0000), "Logged in successfully!");
+        player.spawn();
+    }
+
+    fn on_player_register(&mut self, player: Player, _accountid: u64) {
+        player.send_client_message(Colour::from_rgba(0x00FF0000), "Sucessfully registered.");
+        player.spawn();
     }
 }
