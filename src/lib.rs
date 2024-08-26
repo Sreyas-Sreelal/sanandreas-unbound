@@ -70,7 +70,7 @@ impl Events for SanAndreasUnbound {
         for (playerid, player_info) in self.userinfo.receiver.try_iter() {
             if let Some(player) = Player::from_id(playerid) {
                 self.authenticated_players
-                    .insert(player.get_id(), player_info);
+                    .insert(playerid, player_info);
                 player.spawn();
             }
         }
