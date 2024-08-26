@@ -69,7 +69,7 @@ impl Events for Auth {
         }
     }
 
-    fn on_player_connect(&mut self, player: omp::players::Player) {
+    fn on_player_connect(&mut self, player: Player) {
         let player_name = player.get_name();
         let mut conn = self.connection.get_conn().unwrap();
         let sender = self.register_checker_sender.clone();
@@ -90,7 +90,7 @@ impl Events for Auth {
         &mut self,
         player: Player,
         dialog_id: i32,
-        response: omp::dialogs::DialogResponse,
+        response: DialogResponse,
         _list_item: i32,
         input_text: String,
     ) {

@@ -4,15 +4,13 @@ use std::{
 };
 
 use mysql::{prelude::Queryable, Pool};
-use omp::{events::Events, players::Player};
+use omp::{players::Player, types::vector::Vector3};
 use threadpool::ThreadPool;
 
 pub struct PlayerInfo {
     pub account_id: u64,
     pub skin: i32,
-    pub pos_x: f32,
-    pub pos_y: f32,
-    pub pos_z: f32,
+    pub pos: Vector3,
 }
 
 pub struct UserInfo {
@@ -57,12 +55,10 @@ impl UserInfo {
             let mut data = conn
                 .query_map(
                     format!("SELECT * FROM UserInfo WHERE id={account_id}"),
-                    |(_id, skin, pos_x, pos_y, pos_z): (i32, i32, f32, f32, f32)| PlayerInfo {
+                    |(_id, skin, x, y, z): (i32, i32, f32, f32, f32)| PlayerInfo {
                         account_id,
                         skin,
-                        pos_x,
-                        pos_y,
-                        pos_z,
+                        pos: Vector3::new(x, y, z),
                     },
                 )
                 .unwrap();
@@ -84,9 +80,7 @@ impl UserInfo {
                     PlayerInfo {
                         account_id,
                         skin: 230,
-                        pos_x: pos.x,
-                        pos_y: pos.y,
-                        pos_z: pos.z,
+                        pos,
                     },
                 ));
             }
@@ -121,5 +115,3 @@ impl UserInfo {
         });
     }
 }
-
-impl Events for UserInfo {}

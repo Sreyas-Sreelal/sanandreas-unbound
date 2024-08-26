@@ -4,7 +4,7 @@ pub mod auth;
 pub mod timer;
 pub mod user;
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
 
 use auth::{Auth, AuthEvents};
 use mysql::Pool;
@@ -14,7 +14,7 @@ use omp::{
     main,
     players::Player,
     register,
-    types::{colour::Colour, vector::Vector3},
+    types::{colour::Colour, network::PeerDisconnectReason},
 };
 use threadpool::ThreadPool;
 use timer::Timer;
@@ -83,27 +83,18 @@ impl Events for SanAndreasUnbound {
     }
 
     fn on_player_spawn(&mut self, player: Player) {
-        if !self.authenticated_players.contains_key(&player.get_id()) {
+        if let Some(player_info) = self.authenticated_players.get(&player.get_id()) {
+            player.set_skin(player_info.skin);
+            player.set_pos(player_info.pos);
+        } else {
             player.send_client_message(
                 Colour::from_rgba(0xFF000000),
                 "You are kicked from server (Reason: Not loggedin) !!",
             );
             self.delayed_kick(player);
-            return;
         }
-        let player_info = self.authenticated_players.get(&player.get_id()).unwrap();
-        player.set_skin(player_info.skin);
-        player.set_pos(Vector3::new(
-            player_info.pos_x,
-            player_info.pos_y,
-            player_info.pos_z,
-        ));
     }
-    fn on_player_disconnect(
-        &mut self,
-        player: Player,
-        _reason: omp::types::network::PeerDisconnectReason,
-    ) {
+    fn on_player_disconnect(&mut self, player: Player, _reason: PeerDisconnectReason) {
         if let Some(player_info) = self.authenticated_players.remove(&player.get_id()) {
             self.userinfo.save_player_info(player, player_info);
         }
@@ -111,16 +102,18 @@ impl Events for SanAndreasUnbound {
 }
 
 #[main]
-fn entry() {
+fn entry() -> Result<(), Box<dyn Error>> {
     SetGameModeText("Freeroam/DM/Gangwar");
-    let connection = Pool::new(include_str!("../mysql.config")).unwrap();
+
+    let connection = Pool::new(include_str!("../mysql.config"))?;
     let pool = ThreadPool::new(2);
     let timer = register!(Timer::new());
-    let userinfo = UserInfo::new(pool.clone(), connection.clone()).unwrap();
 
+    let userinfo = UserInfo::new(pool.clone(), connection.clone())?;
     let sau = register!(SanAndreasUnbound::new(timer, userinfo));
-
-    register!(Auth::new(pool.clone(), connection.clone(), Box::new(sau)).unwrap());
+    register!(Auth::new(pool.clone(), connection.clone(), Box::new(sau))?);
 
     log!("San Andreas Unbound v{VERSION} loaded");
+
+    Ok(())
 }
