@@ -4,18 +4,18 @@ pub mod auth;
 pub mod timer;
 pub mod user;
 
-use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
-
 use auth::{Auth, AuthEvents};
 use mysql::Pool;
 use omp::{
+    classes::{Class, PlayerClass},
     core::SetGameModeText,
     events::Events,
     main,
-    players::Player,
+    players::{Player, WeaponSlots},
     register,
-    types::{colour::Colour, network::PeerDisconnectReason},
+    types::{colour::Colour, network::PeerDisconnectReason, vector::Vector3},
 };
+use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
 use threadpool::ThreadPool;
 use timer::Timer;
 use user::{PlayerInfo, UserInfo};
@@ -55,6 +55,7 @@ impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
         self.borrow_mut()
             .userinfo
             .load_player_info(player, account_id);
+        player.toggle_spectating(false);
     }
 
     fn on_player_register(&mut self, player: Player, account_id: u64) {
@@ -62,6 +63,7 @@ impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
         self.borrow_mut()
             .userinfo
             .load_player_info(player, account_id);
+        player.toggle_spectating(false);
     }
 }
 
@@ -69,8 +71,7 @@ impl Events for SanAndreasUnbound {
     fn on_tick(&mut self, _elapsed: i32) {
         for (playerid, player_info) in self.userinfo.receiver.try_iter() {
             if let Some(player) = Player::from_id(playerid) {
-                self.authenticated_players
-                    .insert(playerid, player_info);
+                self.authenticated_players.insert(playerid, player_info);
                 player.spawn();
             }
         }
@@ -94,9 +95,25 @@ impl Events for SanAndreasUnbound {
             self.delayed_kick(player);
         }
     }
+
+    fn on_player_request_class(&mut self, player: Player, _class_id: i32) -> bool {
+        player.set_spawn_info(PlayerClass::default());
+        player.toggle_spectating(true);
+        if self.authenticated_players.contains_key(&player.get_id()) {
+            player.toggle_spectating(false);
+        }
+        true
+    }
+
     fn on_player_disconnect(&mut self, player: Player, _reason: PeerDisconnectReason) {
         if let Some(player_info) = self.authenticated_players.remove(&player.get_id()) {
             self.userinfo.save_player_info(player, player_info);
+        }
+    }
+
+    fn on_player_death(&mut self, player: Player, _killer: Option<Player>, _reason: i32) {
+        if let Some(playerinfo) = self.authenticated_players.get_mut(&player.get_id()) {
+            playerinfo.pos = player.get_pos();
         }
     }
 }
@@ -114,6 +131,14 @@ fn entry() -> Result<(), Box<dyn Error>> {
     register!(Auth::new(pool.clone(), connection.clone(), Box::new(sau))?);
 
     log!("San Andreas Unbound v{VERSION} loaded");
+
+    Class::add(
+        101,
+        0,
+        Vector3::new(300.0, 1800.0, 18.0),
+        0.0,
+        WeaponSlots::default(),
+    );
 
     Ok(())
 }
