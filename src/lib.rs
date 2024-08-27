@@ -21,10 +21,13 @@ use timer::Timer;
 use user::{PlayerInfo, UserInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const MAX_LOGIN_ATTEMPTS: usize = 3;
+
 struct SanAndreasUnbound {
     timer: Rc<RefCell<Timer>>,
     authenticated_players: HashMap<i32, PlayerInfo>,
     userinfo: UserInfo,
+    login_attempts: HashMap<i32, usize>,
 }
 
 impl SanAndreasUnbound {
@@ -33,10 +36,15 @@ impl SanAndreasUnbound {
             timer,
             authenticated_players: HashMap::new(),
             userinfo,
+            login_attempts: HashMap::new(),
         }
     }
-    pub fn delayed_kick(&mut self, player: Player) {
+    pub fn delayed_kick(&mut self, player: Player, reason: &str) {
         let playerid = player.get_id();
+        player.send_client_message(
+            Colour::from_rgba(0xFF000000),
+            &format!("You are kicked from server (Reason: {reason}) !!"),
+        );
         self.timer.borrow_mut().set_timer(
             Box::new(move || {
                 if let Some(player) = Player::from_id(playerid) {
@@ -56,6 +64,7 @@ impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
             .userinfo
             .load_player_info(player, account_id);
         player.toggle_spectating(false);
+        self.borrow_mut().login_attempts.remove(&player.get_id());
     }
 
     fn on_player_register(&mut self, player: Player, account_id: u64) {
@@ -64,6 +73,27 @@ impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
             .userinfo
             .load_player_info(player, account_id);
         player.toggle_spectating(false);
+    }
+
+    fn on_login_attempt_failed(&mut self, player: Player) {
+        let mut gm = self.borrow_mut();
+        let attempts = gm.login_attempts.entry(player.get_id()).or_insert(0);
+
+        *attempts += 1;
+
+        if *attempts == MAX_LOGIN_ATTEMPTS {
+            gm.delayed_kick(player, "Multiple failed attempts to login");
+            return;
+        }
+
+        player.send_client_message(
+            Colour::from_rgba(0xFFFF0000),
+            &format!("WARNING: Invalid Password Entered ({attempts}/{MAX_LOGIN_ATTEMPTS})"),
+        );
+    }
+    fn on_authorization_cancelled(&mut self, player: Player) {
+        self.borrow_mut()
+            .delayed_kick(player, "Didn't login to their account");
     }
 }
 
@@ -77,6 +107,7 @@ impl Events for SanAndreasUnbound {
         }
     }
     fn on_player_connect(&mut self, player: Player) {
+        self.login_attempts.remove(&player.get_id());
         player.send_client_message(
             Colour::from_rgba(0xFF000000),
             "Hey!! Welcome to San Andreas Unbound!!!",
@@ -88,11 +119,7 @@ impl Events for SanAndreasUnbound {
             player.set_skin(player_info.skin);
             player.set_pos(player_info.pos);
         } else {
-            player.send_client_message(
-                Colour::from_rgba(0xFF000000),
-                "You are kicked from server (Reason: Not loggedin) !!",
-            );
-            self.delayed_kick(player);
+            self.delayed_kick(player, "Not logged in");
         }
     }
 

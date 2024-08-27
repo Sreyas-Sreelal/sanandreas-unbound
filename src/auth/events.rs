@@ -50,6 +50,7 @@ impl Events for Auth {
                     self.auth_event.on_player_login(player, accountid);
                 } else {
                     self.login_requestee.insert(playerid);
+                    self.auth_event.on_login_attempt_failed(player);
                     player.show_dialog(
                         AUTH_DIALOG,
                         DialogStyle::Password,
@@ -99,6 +100,7 @@ impl Events for Auth {
             if response == DialogResponse::Right {
                 self.reg_requestee.remove(&playerid);
                 self.login_requestee.remove(&playerid);
+                self.auth_event.on_authorization_cancelled(player);
                 return;
             }
 

@@ -65,14 +65,19 @@ impl Auth {
     }
 }
 
+#[allow(unused_variables)]
 pub trait AuthEvents {
-    fn on_player_login(&mut self, player: Player, _accountid: u64) {
+    fn on_player_login(&mut self, player: Player, accountid: u64) {
         player.send_client_message(Colour::from_rgba(0x00FF0000), "Logged in successfully!");
         player.spawn();
     }
 
-    fn on_player_register(&mut self, player: Player, _accountid: u64) {
+    fn on_player_register(&mut self, player: Player, accountid: u64) {
         player.send_client_message(Colour::from_rgba(0x00FF0000), "Sucessfully registered.");
         player.spawn();
     }
+
+    fn on_login_attempt_failed(&mut self, player: Player) {}
+
+    fn on_authorization_cancelled(&mut self, player: Player) {}
 }
