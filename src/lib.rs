@@ -15,7 +15,11 @@ use omp::{
     register,
     types::{colour::Colour, network::PeerDisconnectReason, vector::Vector3},
 };
-use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
+use std::{
+    collections::HashMap,
+    error::Error,
+    sync::{Arc, Mutex},
+};
 use threadpool::ThreadPool;
 use timer::Timer;
 use user::{PlayerInfo, UserInfo};
@@ -24,14 +28,14 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_LOGIN_ATTEMPTS: usize = 3;
 
 struct SanAndreasUnbound {
-    timer: Rc<RefCell<Timer>>,
+    timer: Arc<Mutex<Timer>>,
     authenticated_players: HashMap<i32, PlayerInfo>,
     userinfo: UserInfo,
     login_attempts: HashMap<i32, usize>,
 }
 
 impl SanAndreasUnbound {
-    pub fn new(timer: Rc<RefCell<Timer>>, userinfo: UserInfo) -> Self {
+    pub fn new(timer: Arc<Mutex<Timer>>, userinfo: UserInfo) -> Self {
         SanAndreasUnbound {
             timer,
             authenticated_players: HashMap::new(),
@@ -45,7 +49,7 @@ impl SanAndreasUnbound {
             Colour::from_rgba(0xFF000000),
             &format!("You are kicked from server (Reason: {reason}) !!"),
         );
-        self.timer.borrow_mut().set_timer(
+        self.timer.lock().unwrap().set_timer(
             Box::new(move || {
                 if let Some(player) = Player::from_id(playerid) {
                     player.kick();
@@ -57,26 +61,28 @@ impl SanAndreasUnbound {
     }
 }
 
-impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
+impl AuthEvents for Arc<Mutex<SanAndreasUnbound>> {
     fn on_player_login(&mut self, player: Player, account_id: u64) {
         player.send_client_message(Colour::from_rgba(0x00FF0000), "Logged in successfully!");
-        self.borrow_mut()
+        self.lock()
+            .unwrap()
             .userinfo
             .load_player_info(player, account_id);
         player.toggle_spectating(false);
-        self.borrow_mut().login_attempts.remove(&player.get_id());
+        self.lock().unwrap().login_attempts.remove(&player.get_id());
     }
 
     fn on_player_register(&mut self, player: Player, account_id: u64) {
         player.send_client_message(Colour::from_rgba(0x00FF0000), "Sucessfully registered.");
-        self.borrow_mut()
+        self.lock()
+            .unwrap()
             .userinfo
             .load_player_info(player, account_id);
         player.toggle_spectating(false);
     }
 
     fn on_login_attempt_failed(&mut self, player: Player) {
-        let mut gm = self.borrow_mut();
+        let mut gm = self.lock().unwrap();
         let attempts = gm.login_attempts.entry(player.get_id()).or_insert(0);
 
         *attempts += 1;
@@ -92,7 +98,8 @@ impl AuthEvents for Rc<RefCell<SanAndreasUnbound>> {
         );
     }
     fn on_authorization_cancelled(&mut self, player: Player) {
-        self.borrow_mut()
+        self.lock()
+            .unwrap()
             .delayed_kick(player, "Didn't login to their account");
     }
 }
